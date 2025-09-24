@@ -83,7 +83,7 @@ class ServiceDeskScraper:
                         self.stop_event.set()
             except (ClientError, ContentTypeError, json.JSONDecodeError) as e:
                 self.fatal_error = True, f"Error occurred while fetching tasks: {e}"
-            self.stop_event.set()
+            
             async with self.lock_index:
                 current_index = self.index
                 self.index += 100
@@ -133,8 +133,6 @@ async def run_scraper(token, local_url):
         await asyncio.gather(*get_ids)
 
         error, msg = scraper.fatal_error
-        print("\nFinished getting all task IDs")
- 
         if error:
             print(f"\n{msg}, exiting")
             return
