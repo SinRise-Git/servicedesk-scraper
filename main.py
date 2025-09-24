@@ -41,11 +41,8 @@ class ServiceDeskScraper:
                     await asyncio.to_thread(os.remove, file_path)
 
     async def get_tasks(self, session):
+        current_index = 0
         while not self.stop_event.is_set():
-            async with self.lock_index:
-                current_index = self.index
-                self.index += 100
-
             data = {
                 "list_info": {
                     "row_count": "100",
@@ -87,6 +84,9 @@ class ServiceDeskScraper:
             except (ClientError, ContentTypeError, json.JSONDecodeError) as e:
                 self.fatal_error = True, f"Error occurred while fetching tasks: {e}"
             self.stop_event.set()
+            async with self.lock_index:
+                current_index = self.index
+                self.index += 100
 
     async def task_request(self, session):
         while not self.task_queue.empty():
