@@ -41,7 +41,6 @@ class ServiceDeskScraper:
                     await asyncio.to_thread(os.remove, file_path)
 
     async def get_tasks(self, session):
-        ## Fetch all existing task IDs and add to queue, no filtering just get all IDs
         while not self.stop_event.is_set():
             async with self.lock_index:
                 current_index = self.index
@@ -67,7 +66,7 @@ class ServiceDeskScraper:
                     async with session.get(f"{self.local_url}/api/v3/requests", params=params, headers=headers) as response:
                         response_json = await response.json()
                         try:
-                            # The response_status can be a list or a dict, handle both cases, why they do this is weird    
+                            ##The response_status can be a list or a dict, handle both cases, why they do this is weird    
                             status_code = response_json["response_status"][0].get("status_code") if isinstance(response_json["response_status"], list) else response_json["response_status"].get("status_code")
                             if status_code in [2000]:               
                                 for task in response_json["requests"]:
@@ -77,21 +76,20 @@ class ServiceDeskScraper:
                                         self.current_task = task["id"]
                                         await self.task_queue.put(task["id"])
                                 if response_json["list_info"]["has_more_rows"] == False:
-                                    self.stop_event_get.set()
+                                    self.stop_event.set()
                             elif status_code in [4000]:
                                 ## If SDPSESSIONID is invalid, stop all tasks
                                 self.fatal_error = True, "Your SDPSESSIONID is most likely invalid, please check and try again"
-                                self.stop_event_get.set()
+                                self.stop_event.set()
                         except (KeyError, IndexError, TypeError) as e:
                             self.fatal_error = True, f"Error occurred while processing response: {e}"
-                            self.stop_event_get.set()
+                            self.stop_event.set()
                 except (ClientError, ContentTypeError, json.JSONDecodeError) as e:
                     self.fatal_error = True, f"Error occurred while fetching tasks: {e}"
-                    self.stop_event_get.set()
+                    self.stop_event.set()
 
     async def task_request(self, session):
-        while not self.task_queue.empty() or not self.stop_event.is_set():
-            ## Fetch task details for each task ID in the queue
+        while not self.task_queue.empty():
             task_id = await asyncio.wait_for(self.task_queue.get(), timeout=1.0)
             headers = {
                 "Cookie": f"SDPSESSIONID={self.token};",
@@ -135,10 +133,10 @@ async def run_scraper(token, local_url):
         await asyncio.gather(*get_ids)
         
         error, msg = scraper.fatal_error
-        scraper.stop_event.clear()
+        print("\nFinished getting all task IDs")
  
         if error:
-            print(f"\nFatal error occurred: {msg}, exiting")
+            print(f"\n{msg}, exiting")
             return
         
         print("\nFinished getting all task IDs, now fetching details")
@@ -161,4 +159,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    asyncio.run(run_scraper(args.token, args.local_url))
+    asyncio.run(run_scraper(args.token, args.url))
