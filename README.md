@@ -15,9 +15,9 @@ Ideal for analysis or training AI models.
 You can change the data the script collects and the conditions under which it collects it. Currently, it retrieves the ID, description, and resolution from all tasks that have a resolution, in a format like:
 ```json
 {
-    "TASK_ID"
-        "description": "TASK_DESCRIPTION",
-        "resolution": "TASK_RESOLUTION"
+"TASK_ID"
+    "description": "TASK_DESCRIPTION",
+    "resolution": "TASK_RESOLUTION"
 }
 ```
 
