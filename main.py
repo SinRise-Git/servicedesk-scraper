@@ -46,47 +46,47 @@ class ServiceDeskScraper:
                 current_index = self.index
                 self.index += 100
 
-                data = {
-                    "list_info": {
-                        "row_count": "100",
-                        "start_index": current_index,
-                        "get_total_count": "true",
-                        "sort_field": "id",
-                        "sort_order": "asc",
-                        "fields_required": ["id"],
-                    },
-                }
-                params = {
-                    "input_data": json.dumps(data),
-                }
-                headers = {
-                    "Cookie": f"SDPSESSIONID={self.token};"
-                }
-                try:
-                    async with session.get(f"{self.local_url}/api/v3/requests", params=params, headers=headers) as response:
-                        response_json = await response.json()
-                        try:
-                            ##The response_status can be a list or a dict, handle both cases, why they do this is weird    
-                            status_code = response_json["response_status"][0].get("status_code") if isinstance(response_json["response_status"], list) else response_json["response_status"].get("status_code")
-                            if status_code in [2000]:               
-                                for task in response_json["requests"]:
-                                    print(f"\rChecking task: {task['id']} - task: {self.current_task} is missing so adding to queue", end="", flush=True)
-                                    ## Checks if task ID already exists in existing_tasks
-                                    if str(task["id"]) not in self.existing_tasks:
-                                        self.current_task = task["id"]
-                                        await self.task_queue.put(task["id"])
-                                if response_json["list_info"]["has_more_rows"] == False:
-                                    self.stop_event.set()
-                            elif status_code in [4000]:
-                                ## If SDPSESSIONID is invalid, stop all tasks
-                                self.fatal_error = True, "Your SDPSESSIONID is most likely invalid, please check and try again"
+            data = {
+                "list_info": {
+                    "row_count": "100",
+                    "start_index": current_index,
+                    "get_total_count": "true",
+                    "sort_field": "id",
+                    "sort_order": "asc",
+                    "fields_required": ["id"],
+                },
+            }
+            params = {
+                "input_data": json.dumps(data),
+            }
+            headers = {
+                "Cookie": f"SDPSESSIONID={self.token};"
+            }
+            try:
+                async with session.get(f"{self.local_url}/api/v3/requests", params=params, headers=headers) as response:
+                    response_json = await response.json()
+                    try:
+                        ##The response_status can be a list or a dict, handle both cases, why they do this is weird    
+                        status_code = response_json["response_status"][0].get("status_code") if isinstance(response_json["response_status"], list) else response_json["response_status"].get("status_code")
+                        if status_code in [2000]:               
+                            for task in response_json["requests"]:
+                                print(f"\rChecking task: {task['id']} - task: {self.current_task} is missing so adding to queue", end="", flush=True)
+                                ## Checks if task ID already exists in existing_tasks
+                                if str(task["id"]) not in self.existing_tasks:
+                                    self.current_task = task["id"]
+                                    await self.task_queue.put(task["id"])
+                            if response_json["list_info"]["has_more_rows"] == False:
                                 self.stop_event.set()
-                        except (KeyError, IndexError, TypeError) as e:
-                            self.fatal_error = True, f"Error occurred while processing response: {e}"
+                        elif status_code in [4000]:
+                            ## If SDPSESSIONID is invalid, stop all tasks
+                            self.fatal_error = True, "Your SDPSESSIONID is most likely invalid, please check and try again"
                             self.stop_event.set()
-                except (ClientError, ContentTypeError, json.JSONDecodeError) as e:
-                    self.fatal_error = True, f"Error occurred while fetching tasks: {e}"
-                    self.stop_event.set()
+                    except (KeyError, IndexError, TypeError) as e:
+                        self.fatal_error = True, f"Error occurred while processing response: {e}"
+                        self.stop_event.set()
+            except (ClientError, ContentTypeError, json.JSONDecodeError) as e:
+                self.fatal_error = True, f"Error occurred while fetching tasks: {e}"
+            self.stop_event.set()
 
     async def task_request(self, session):
         while not self.task_queue.empty():
@@ -131,7 +131,7 @@ async def run_scraper(token, local_url):
         ## Create multiple tasks to fetch task IDs concurrently
         get_ids = [asyncio.create_task(scraper.get_tasks(session)) for _ in range(50)]
         await asyncio.gather(*get_ids)
-        
+
         error, msg = scraper.fatal_error
         print("\nFinished getting all task IDs")
  
