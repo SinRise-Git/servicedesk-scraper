@@ -25,7 +25,7 @@ class ServiceDeskScraper:
         self.local_url = local_url
 
     async def check_tasks(self):
-        ## Check if data.json file exists and load existing tasks
+        # Check if data.json file exists and load existing tasks
         file_path = Path("data.json")
         if file_path.exists():
             async with aiofiles.open(file_path, "r", encoding="utf-8") as file:
@@ -63,19 +63,19 @@ class ServiceDeskScraper:
                 async with session.get(f"{self.local_url}/api/v3/requests", params=params, headers=headers) as response:
                     response_json = await response.json()
                     try:
-                        ##The response_status can be a list or a dict, handle both cases, why they do this is weird    
+                        # The response_status can be a list or a dict, handle both cases, why they do this is weird    
                         status_code = response_json["response_status"][0].get("status_code") if isinstance(response_json["response_status"], list) else response_json["response_status"].get("status_code")
                         if status_code in [2000]:               
                             for task in response_json["requests"]:
                                 print(f"\rChecking task: {task['id']} - task: {self.current_task} is missing so adding to queue", end="", flush=True)
-                                ## Checks if task ID already exists in existing_tasks
+                                # Checks if task ID already exists in existing_tasks
                                 if str(task["id"]) not in self.existing_tasks:
                                     self.current_task = task["id"]
                                     await self.task_queue.put(task["id"])
                             if response_json["list_info"]["has_more_rows"] == False:
                                 self.stop_event.set()
                         elif status_code in [4000]:
-                            ## If SDPSESSIONID is invalid, stop all tasks
+                            # If SDPSESSIONID is invalid, stop all tasks
                             self.fatal_error = True, "Your SDPSESSIONID is most likely invalid, please check and try again"
                             self.stop_event.set()
                     except (KeyError, IndexError, TypeError) as e:
@@ -99,17 +99,17 @@ class ServiceDeskScraper:
                     task_details = await response.json()
                     task_complete = task_details['request_detail'][0]['request']['resolution']['content']
 
-                    ## Here you can add more filtering if needed, currently just checks if resolution exists
+                    # Here you can add more filtering if needed, currently just checks if resolution exists
                     if task_complete is not None:
                         
-                        ## Here you add more fields if needed, currently just getting description and resolution
+                        # Here you add more fields if needed, currently just getting description and resolution
                         task_description = task_details['request_detail'][0]['request']['description']
                         
                         task_description_html, task_complete_html = html.unescape(task_description), html.unescape(task_complete)
                         soup_description, soup_complete = BeautifulSoup(task_description_html, 'html.parser'), BeautifulSoup(task_complete_html, 'html.parser')
                         task_description_text, task_complete_text = soup_description.get_text(strip=True), soup_complete.get_text(strip=True)
                         
-                        ## Here you can change how the json data is stored, currently stores in a dict with task ID as key and description and resolution as values
+                        # Here you can change how the json data is stored, currently stores in a dict with task ID as key and description and resolution as values
                         self.all_tasks[task_id] = {        
                             "description": task_description_text,
                             "resolution": task_complete_text
@@ -128,7 +128,7 @@ async def run_scraper(token, local_url):
     await scraper.check_tasks()
 
     async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=100)) as session:
-        ## Create multiple tasks to fetch task IDs concurrently
+        # Create multiple tasks to fetch task IDs concurrently
         get_ids = [asyncio.create_task(scraper.get_tasks(session)) for _ in range(50)]
         await asyncio.gather(*get_ids)
 
@@ -138,13 +138,13 @@ async def run_scraper(token, local_url):
             return
         
         print("\nFinished getting all task IDs, now fetching details")
-        ## Create multiple tasks to fetch task details concurrently
+        # Create multiple tasks to fetch task details concurrently
         get_details = [asyncio.create_task(scraper.task_request(session)) for _ in range(50)]
         await asyncio.gather(*get_details)
 
         print("\nFetched all valid task details, saving to data.json")
      
-        ## Merge existing tasks with new tasks and sort by task ID before saving
+        # Merge existing tasks with new tasks and sort by task ID before saving
         scraper.all_tasks.update(scraper.existing_tasks)
         sorted_tasks = dict(sorted(scraper.all_tasks.items(), key=lambda item: item[0]))
         with open("data.json", "w", encoding="utf-8") as file:
